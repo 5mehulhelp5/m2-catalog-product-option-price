@@ -1,0 +1,24 @@
+/**
+ * @author      Andreas Knollmann
+ * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
+& when (@media-common = true) {
+    tr.item-actions {
+        > td {
+            > div.actions-toolbar {
+                position: revert;
+                padding-bottom: 0;
+
+                table.item-options {
+                    tr.item-option {
+                        td.item-option-price {
+                            text-align: right;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
