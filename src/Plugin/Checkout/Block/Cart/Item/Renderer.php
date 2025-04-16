@@ -42,6 +42,13 @@ class Renderer
             }
 
             foreach ($result as $key => $optionData) {
+                if (! array_key_exists(
+                    'option_id',
+                    $optionData
+                )) {
+                    continue;
+                }
+
                 if ($optionId == $optionData[ 'option_id' ]) {
                     unset($result[ $key ]);
                 }
