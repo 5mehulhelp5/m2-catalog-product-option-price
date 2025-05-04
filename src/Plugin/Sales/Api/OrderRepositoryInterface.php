@@ -47,7 +47,7 @@ class OrderRepositoryInterface
         OrderSearchResultInterface $orderSearchResult
     ): OrderSearchResultInterface {
         foreach ($orderSearchResult->getItems() as $order) {
-            $this->addCustomerBenefitApiFlag($order);
+            $this->addProductOptionPrice($order);
         }
 
         return $orderSearchResult;
@@ -58,12 +58,12 @@ class OrderRepositoryInterface
         \Magento\Sales\Api\OrderRepositoryInterface $subject,
         OrderInterface $order
     ): OrderInterface {
-        $this->addCustomerBenefitApiFlag($order);
+        $this->addProductOptionPrice($order);
 
         return $order;
     }
 
-    private function addCustomerBenefitApiFlag(OrderInterface $order)
+    private function addProductOptionPrice(OrderInterface $order)
     {
         foreach ($order->getItems() as $item) {
             if ($item instanceof Item) {

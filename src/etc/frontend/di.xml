@@ -9,4 +9,7 @@
     <type name="Magento\Checkout\Block\Cart\Item\Renderer">
         <plugin name="infrangible_catalogproductoptionprice" type="Infrangible\CatalogProductOptionPrice\Plugin\Checkout\Block\Cart\Item\Renderer" sortOrder="100"/>
     </type>
+    <type name="Magento\Weee\Block\Item\Price\Renderer">
+        <plugin name="infrangible_catalogproductoptionprice" type="Infrangible\CatalogProductOptionPrice\Plugin\Weee\Block\Item\Price\Renderer"/>
+    </type>
 </config>

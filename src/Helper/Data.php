@@ -14,6 +14,14 @@ use Magento\Quote\Model\Quote\Item\AbstractItem;
  */
 class Data
 {
+    /** @var \Magento\Catalog\Helper\Data */
+    protected $catalogHelper;
+
+    public function __construct(\Magento\Catalog\Helper\Data $catalogHelper)
+    {
+        $this->catalogHelper = $catalogHelper;
+    }
+
     public function getItemOptionPrices(AbstractItem $item): array
     {
         $itemOptionIds = $item->getOptionByCode('option_ids');
@@ -52,10 +60,18 @@ class Data
                         $itemOption
                     );
 
-                    $optionPrices[ $optionId ] = $group->getOptionPrice(
+                    $optionPrice = $group->getOptionPrice(
                         $itemOption->getValue(),
                         $finalPrice
                     );
+
+                    $optionPrice = $this->catalogHelper->getTaxPrice(
+                        $option->getProduct(),
+                        $optionPrice,
+                        true
+                    );
+
+                    $optionPrices[ $optionId ] = $optionPrice;
                 }
             }
         }

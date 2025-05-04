@@ -7,6 +7,7 @@ namespace Infrangible\CatalogProductOptionPrice\Block\Cart\Item;
 use Infrangible\CatalogProductOptionPrice\Helper\Data;
 use Magento\Catalog\Helper\Product\Configuration;
 use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\Framework\View\Element\Template;
 use Magento\Framework\View\Element\Template\Context;
 use Magento\Quote\Model\Quote\Item\AbstractItem;
@@ -24,10 +25,14 @@ class Options extends Template
     /** @var Data */
     protected $catalogProductOptionPriceHelper;
 
+    /** @var PriceCurrencyInterface */
+    protected $priceCurrency;
+
     public function __construct(
         Context $context,
         Configuration $productConfigurationHelper,
         Data $catalogProductOptionPriceHelper,
+        PriceCurrencyInterface $priceCurrency,
         array $data = []
     ) {
         parent::__construct(
@@ -37,6 +42,7 @@ class Options extends Template
 
         $this->productConfigurationHelper = $productConfigurationHelper;
         $this->catalogProductOptionPriceHelper = $catalogProductOptionPriceHelper;
+        $this->priceCurrency = $priceCurrency;
     }
 
     protected function _construct()
@@ -122,7 +128,7 @@ class Options extends Template
                         'option_id'   => $option->getId(),
                         'option_type' => $option->getType(),
                         'custom_view' => $group->isCustomizedView(),
-                        'price'       => $optionPrice
+                        'price'       => $this->priceCurrency->roundPrice($optionPrice * $item->getQty())
                     ];
                 }
             }

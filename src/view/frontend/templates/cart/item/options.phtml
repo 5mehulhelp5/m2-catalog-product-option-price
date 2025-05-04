@@ -43,7 +43,7 @@ $options = $block->getOptionList();
                     </dd>
                 </td>
                 <td class="item-option-price">
-                    + <?= $escaper->escapeHtml($checkoutHelper->formatPrice($option['price']), ['span']); ?>
+                    <?= $escaper->escapeHtml($checkoutHelper->formatPrice($option['price']), ['span']); ?>
                 </td>
             </tr>
             <?php $isFirst = false; ?>

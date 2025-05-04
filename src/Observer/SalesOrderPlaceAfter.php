@@ -6,6 +6,7 @@ namespace Infrangible\CatalogProductOptionPrice\Observer;
 
 use FeWeDev\Base\Arrays;
 use FeWeDev\Base\Variables;
+use Magento\Catalog\Helper\Data;
 use Magento\Catalog\Model\Product\Option;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
@@ -30,11 +31,19 @@ class SalesOrderPlaceAfter implements ObserverInterface
     /** @var ItemRepository */
     protected $itemRepository;
 
-    public function __construct(Variables $variables, Arrays $arrays, ItemRepository $itemRepository)
-    {
+    /** @var Data */
+    protected $catalogHelper;
+
+    public function __construct(
+        Variables $variables,
+        Arrays $arrays,
+        ItemRepository $itemRepository,
+        Data $catalogHelper
+    ) {
         $this->variables = $variables;
         $this->arrays = $arrays;
         $this->itemRepository = $itemRepository;
+        $this->catalogHelper = $catalogHelper;
     }
 
     /**
@@ -92,12 +101,18 @@ class SalesOrderPlaceAfter implements ObserverInterface
                         $finalPrice
                     );
 
+                    $productOptionPrice = $this->catalogHelper->getTaxPrice(
+                        $product,
+                        $productOptionPrice,
+                        true
+                    );
+
                     if ($item->getDiscountAmount()) {
                         $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'original_price' ] =
                             $productOptionPrice;
 
                         $productOptionDiscount = round(
-                            $productOptionPrice * $item->getDiscountAmount() / $item->getPrice(),
+                            $productOptionPrice * $item->getDiscountAmount() / $item->getRowTotalInclTax(),
                             2
                         );
 

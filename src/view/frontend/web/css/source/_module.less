@@ -13,8 +13,31 @@
 
                 table.item-options {
                     tr.item-option {
+                        td.item-options-label {
+                            font-weight: 700;
+                        }
+
                         td.item-option-price {
+                            font-weight: 700;
                             text-align: right;
+
+                            span.price {
+                                &:before {
+                                    content: '+ ';
+                                }
+                            }
+                        }
+                    }
+                }
+
+                table.item-offers {
+                    tr.item-offer {
+                        td.item-offer-price {
+                            span.price {
+                                &:before {
+                                    content: '+ ';
+                                }
+                            }
                         }
                     }
                 }
