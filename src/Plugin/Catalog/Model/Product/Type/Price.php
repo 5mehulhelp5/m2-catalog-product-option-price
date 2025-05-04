@@ -95,7 +95,7 @@ class Price
                         $group->setOption($option);
                         $group->setData(
                             'configuration_item_option',
-                            $option
+                            $customOption
                         );
 
                         $optionsPrice += $group->getOptionPrice(

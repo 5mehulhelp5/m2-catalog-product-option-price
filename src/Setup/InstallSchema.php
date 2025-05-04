@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Infrangible\CatalogProductOptionPrice\Setup;
 
 use Exception;
-use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\DB\Ddl\Table;
 use Magento\Framework\Setup\InstallSchemaInterface;
 use Magento\Framework\Setup\ModuleContextInterface;
@@ -18,6 +17,11 @@ use Magento\Framework\Setup\SchemaSetupInterface;
  */
 class InstallSchema implements InstallSchemaInterface
 {
+    private static $tables = [
+        'quote_item',
+        'sales_order_item'
+    ];
+
     private static $columns = [
         'options_price'                   => 'Options price',
         'base_options_price'              => 'Base options price',
@@ -38,52 +42,24 @@ class InstallSchema implements InstallSchemaInterface
 
         $connection = $setup->getConnection();
 
-        $this->createQuoteColumns($connection);
-        $this->createOrderColumns($connection);
+        foreach (self::$tables as $tableName) {
+            $tableName = $connection->getTableName($tableName);
+
+            foreach (static::$columns as $column => $comment) {
+                if (! $connection->tableColumnExists(
+                    $tableName,
+                    $column
+                )) {
+                    $connection->addColumn(
+                        $tableName,
+                        $column,
+                        $this->getColumnDefinition($comment)
+                    );
+                }
+            }
+        }
 
         $setup->endSetup();
-    }
-
-    /**
-     * @throws Exception
-     */
-    private function createQuoteColumns(AdapterInterface $connection)
-    {
-        $quoteItemTableName = $connection->getTableName('quote_item');
-
-        foreach (static::$columns as $column => $comment) {
-            if (! $connection->tableColumnExists(
-                $quoteItemTableName,
-                $column
-            )) {
-                $connection->addColumn(
-                    $quoteItemTableName,
-                    $column,
-                    $this->getColumnDefinition($comment)
-                );
-            }
-        }
-    }
-
-    /**
-     * @throws Exception
-     */
-    private function createOrderColumns(AdapterInterface $connection)
-    {
-        $orderItemTableName = $connection->getTableName('sales_order_item');
-
-        foreach (static::$columns as $column => $comment) {
-            if (! $connection->tableColumnExists(
-                $orderItemTableName,
-                $column
-            )) {
-                $connection->addColumn(
-                    $orderItemTableName,
-                    $column,
-                    $this->getColumnDefinition($comment)
-                );
-            }
-        }
     }
 
     private function getColumnDefinition(string $comment): array
