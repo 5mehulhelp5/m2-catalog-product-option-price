@@ -46,7 +46,7 @@ class Price
 
         $optionsPrice = $this->getOptionsPrice(
             $product,
-            $finalPrice
+            floatval($finalPrice)
         );
 
         $transportObject = new DataObject(
