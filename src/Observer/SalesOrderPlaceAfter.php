@@ -82,6 +82,11 @@ class SalesOrderPlaceAfter implements ObserverInterface
             /** @var Option $productOption */
             foreach ($product->getProductOptionsCollection() as $productOption) {
                 if ($productOption->getId() == $itemProductOptionId) {
+                    $productOption->setData(
+                        'item',
+                        $item
+                    );
+
                     $finalPrice = $product->getFinalPrice();
 
                     $group = $productOption->groupFactory($productOption->getType());
