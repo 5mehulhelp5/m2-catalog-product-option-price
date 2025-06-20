@@ -7,6 +7,8 @@ namespace Infrangible\CatalogProductOptionPrice\Plugin\Checkout\Block\Cart\Item;
 use Infrangible\CatalogProductOptionPrice\Block\Cart\Item\Options;
 use Infrangible\CatalogProductOptionPrice\Helper\Data;
 use Infrangible\Core\Helper\Block;
+use Magento\Framework\DataObject;
+use Magento\Framework\Event\ManagerInterface;
 use Magento\Quote\Model\Quote\Item\AbstractItem;
 
 /**
@@ -22,10 +24,17 @@ class Renderer
     /** @var Block */
     protected $blockHelper;
 
-    public function __construct(Data $catalogProductOptionPriceHelper, Block $blockHelper)
-    {
+    /** @var ManagerInterface */
+    protected $eventManager;
+
+    public function __construct(
+        Data $catalogProductOptionPriceHelper,
+        Block $blockHelper,
+        ManagerInterface $eventManager
+    ) {
         $this->catalogProductOptionPriceHelper = $catalogProductOptionPriceHelper;
         $this->blockHelper = $blockHelper;
+        $this->eventManager = $eventManager;
     }
 
     public function afterGetOptionList(\Magento\Checkout\Block\Cart\Item\Renderer $subject, array $result): array
@@ -37,7 +46,27 @@ class Renderer
         foreach ($optionPrices as $optionId => $optionPrice) {
             $optionPrice = $optionPrices[ $optionId ];
 
-            if ($optionPrice < 0.0001) {
+            $display = $optionPrice < 0.0001;
+
+            $transportObject = new DataObject(
+                [
+                    'item'      => $item,
+                    'option_id' => $optionId,
+                    'price'     => $optionPrice,
+                    'display'   => $display
+                ]
+            );
+
+            $this->eventManager->dispatch(
+                'catalog_product_option_price_item_renderer',
+                [
+                    'data' => $transportObject
+                ]
+            );
+
+            $display = $transportObject->getData('display');
+
+            if ($display) {
                 continue;
             }
 

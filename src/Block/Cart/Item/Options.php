@@ -6,6 +6,8 @@ namespace Infrangible\CatalogProductOptionPrice\Block\Cart\Item;
 
 use Infrangible\CatalogProductOptionPrice\Helper\Data;
 use Magento\Catalog\Helper\Product\Configuration;
+use Magento\Framework\DataObject;
+use Magento\Framework\Event\ManagerInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\Framework\View\Element\Template;
@@ -28,11 +30,15 @@ class Options extends Template
     /** @var PriceCurrencyInterface */
     protected $priceCurrency;
 
+    /** @var ManagerInterface */
+    protected $eventManager;
+
     public function __construct(
         Context $context,
         Configuration $productConfigurationHelper,
         Data $catalogProductOptionPriceHelper,
         PriceCurrencyInterface $priceCurrency,
+        ManagerInterface $eventManager,
         array $data = []
     ) {
         parent::__construct(
@@ -43,6 +49,7 @@ class Options extends Template
         $this->productConfigurationHelper = $productConfigurationHelper;
         $this->catalogProductOptionPriceHelper = $catalogProductOptionPriceHelper;
         $this->priceCurrency = $priceCurrency;
+        $this->eventManager = $eventManager;
     }
 
     protected function _construct()
@@ -96,7 +103,28 @@ class Options extends Template
 
                 $optionPrice = $optionPrices[ $optionId ];
 
-                if ($optionPrice < 0.0001) {
+                $display = $optionPrice > 0;
+
+                $transportObject = new DataObject(
+                    [
+                        'item'      => $item,
+                        'option_id' => $optionId,
+                        'price'     => $optionPrice,
+                        'display'   => $display
+                    ]
+                );
+
+                $this->eventManager->dispatch(
+                    'catalog_product_option_price_item_options',
+                    [
+                        'data' => $transportObject
+                    ]
+                );
+
+                $optionPrice = $transportObject->getData('price');
+                $display = $transportObject->getData('display');
+
+                if (! $display) {
                     continue;
                 }
 
