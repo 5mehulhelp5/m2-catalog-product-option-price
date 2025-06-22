@@ -51,10 +51,11 @@ class Price
 
         $transportObject = new DataObject(
             [
-                'product'       => $product,
-                'qty'           => $qty,
-                'final_price'   => $finalPrice,
-                'options_price' => $optionsPrice
+                'product'                  => $product,
+                'qty'                      => $qty,
+                'final_price'              => $finalPrice,
+                'options_price_attached'   => $optionsPrice,
+                'options_price_unattached' => 0
             ]
         );
 
@@ -66,8 +67,13 @@ class Price
         );
 
         $product->setData(
-            'options_price',
-            $transportObject->getData('options_price')
+            'options_price_attached',
+            $transportObject->getData('options_price_attached')
+        );
+
+        $product->setData(
+            'options_price_unattached',
+            $transportObject->getData('options_price_unattached')
         );
 
         return $result;

@@ -110,6 +110,7 @@ class Options extends Template
                         'item'      => $item,
                         'option_id' => $optionId,
                         'price'     => $optionPrice,
+                        'attached'  => true,
                         'display'   => $display
                     ]
                 );
@@ -123,6 +124,7 @@ class Options extends Template
 
                 $optionPrice = $transportObject->getData('price');
                 $display = $transportObject->getData('display');
+                $attached = $transportObject->getData('attached');
 
                 if (! $display) {
                     continue;
@@ -156,7 +158,9 @@ class Options extends Template
                         'option_id'   => $option->getId(),
                         'option_type' => $option->getType(),
                         'custom_view' => $group->isCustomizedView(),
-                        'price'       => $this->priceCurrency->roundPrice($optionPrice * $item->getQty())
+                        'price'       => $this->priceCurrency->roundPrice(
+                            $attached ? $optionPrice * $item->getQty() : $optionPrice
+                        )
                     ];
                 }
             }
