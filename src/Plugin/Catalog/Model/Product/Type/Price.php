@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Infrangible\CatalogProductOptionPrice\Plugin\Catalog\Model\Product\Type;
 
+use FeWeDev\Base\Variables;
 use Magento\Catalog\Model\Product;
 use Magento\Framework\DataObject;
 use Magento\Framework\Event\ManagerInterface;
@@ -19,9 +20,13 @@ class Price
     /** @var ManagerInterface */
     protected $eventManager;
 
-    public function __construct(ManagerInterface $eventManager)
+    /** @var Variables */
+    protected $variables;
+
+    public function __construct(ManagerInterface $eventManager, Variables $variables)
     {
         $this->eventManager = $eventManager;
+        $this->variables = $variables;
     }
 
     public function afterGetFinalPrice(Product\Type\Price $subject, float $result, ?float $qty, Product $product): float
@@ -46,7 +51,8 @@ class Price
 
         $optionsPrice = $this->getOptionsPrice(
             $product,
-            floatval($finalPrice)
+            floatval($finalPrice),
+            $qty
         );
 
         $transportObject = new DataObject(
@@ -79,36 +85,64 @@ class Price
         return $result;
     }
 
-    protected function getOptionsPrice(Product $product, float $finalPrice): float
+    protected function getOptionsPrice(Product $product, float $finalPrice, ?float $qty): float
     {
-        $optionIds = $product->getCustomOption('option_ids');
+        $optionIdsOption = $product->getCustomOption('option_ids');
 
         $optionsPrice = 0;
 
-        if ($optionIds) {
-            foreach (explode(
-                ',',
-                $optionIds->getValue() ?? ''
-            ) as $optionId) {
-                $option = $product->getOptionById($optionId);
+        if ($optionIdsOption) {
+            $optionIdsOptionValue = $optionIdsOption->getValue();
 
-                if ($option) {
-                    $customOption = $product->getCustomOption('option_' . $option->getId());
+            if (! $this->variables->isEmpty($optionIdsOptionValue)) {
+                $optionIds = explode(
+                    ',',
+                    $optionIdsOptionValue
+                );
 
-                    try {
-                        $group = $option->groupFactory($option->getType());
+                foreach ($optionIds as $optionId) {
+                    $productOption = $product->getOptionById($optionId);
 
-                        $group->setOption($option);
-                        $group->setData(
-                            'configuration_item_option',
-                            $customOption
-                        );
+                    if ($productOption) {
+                        $customOption = $product->getCustomOption('option_' . $productOption->getId());
 
-                        $optionsPrice += $group->getOptionPrice(
-                            $customOption->getValue(),
-                            $finalPrice
-                        );
-                    } catch (LocalizedException $exception) {
+                        try {
+                            $group = $productOption->groupFactory($productOption->getType());
+
+                            $group->setOption($productOption);
+                            $group->setData(
+                                'configuration_item_option',
+                                $customOption
+                            );
+
+                            $optionPrice = $group->getOptionPrice(
+                                $customOption->getValue(),
+                                $finalPrice
+                            );
+
+                            $transportObject = new DataObject(
+                                [
+                                    'product'        => $product,
+                                    'final_price'    => $finalPrice,
+                                    'qty'            => $qty,
+                                    'product_option' => $productOption,
+                                    'custom_option'  => $customOption,
+                                    'option_price'   => $optionPrice
+                                ]
+                            );
+
+                            $this->eventManager->dispatch(
+                                'catalog_product_get_option_price',
+                                [
+                                    'data' => $transportObject
+                                ]
+                            );
+
+                            $optionPrice = $transportObject->getData('option_price');
+
+                            $optionsPrice += $optionPrice;
+                        } catch (LocalizedException $exception) {
+                        }
                     }
                 }
             }
