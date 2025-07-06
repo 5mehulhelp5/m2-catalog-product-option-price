@@ -6,8 +6,11 @@ namespace Infrangible\CatalogProductOptionPrice\Observer;
 
 use FeWeDev\Base\Arrays;
 use FeWeDev\Base\Variables;
+use Infrangible\Core\Helper\Instances;
 use Magento\Catalog\Helper\Data;
 use Magento\Catalog\Model\Product\Option;
+use Magento\Framework\DataObject;
+use Magento\Framework\Event\ManagerInterface;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -34,16 +37,26 @@ class SalesOrderPlaceAfter implements ObserverInterface
     /** @var Data */
     protected $catalogHelper;
 
+    /** @var Instances */
+    protected $instanceHelper;
+
+    /** @var ManagerInterface */
+    protected $eventManager;
+
     public function __construct(
         Variables $variables,
         Arrays $arrays,
         ItemRepository $itemRepository,
-        Data $catalogHelper
+        Data $catalogHelper,
+        Instances $instanceHelper,
+        ManagerInterface $eventManager
     ) {
         $this->variables = $variables;
         $this->arrays = $arrays;
         $this->itemRepository = $itemRepository;
         $this->catalogHelper = $catalogHelper;
+        $this->instanceHelper = $instanceHelper;
+        $this->eventManager = $eventManager;
     }
 
     /**
@@ -101,33 +114,57 @@ class SalesOrderPlaceAfter implements ObserverInterface
                         $productOption
                     );
 
-                    $productOptionPrice = $group->getOptionPrice(
+                    $customOption = $this->instanceHelper->getInstance(
+                        \Infrangible\CatalogProductOptionPrice\Model\Order\Item\Option::class,
+                        ['data' => $itemProductOption]
+                    );
+
+                    $optionPrice = $group->getOptionPrice(
                         $itemProductOption[ 'option_value' ],
                         $finalPrice
                     );
 
-                    $productOptionPrice = $this->catalogHelper->getTaxPrice(
+                    $transportObject = new DataObject(
+                        [
+                            'product'        => $product,
+                            'final_price'    => $finalPrice,
+                            'qty'            => $item->getQtyOrdered(),
+                            'product_option' => $productOption,
+                            'custom_option'  => $customOption,
+                            'option_price'   => $optionPrice
+                        ]
+                    );
+
+                    $this->eventManager->dispatch(
+                        'catalog_product_get_option_price',
+                        [
+                            'data' => $transportObject
+                        ]
+                    );
+
+                    $optionPrice = $transportObject->getData('option_price');
+
+                    $optionPrice = $this->catalogHelper->getTaxPrice(
                         $product,
-                        $productOptionPrice,
+                        $optionPrice,
                         true
                     );
 
                     if ($item->getDiscountAmount()) {
-                        $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'original_price' ] =
-                            $productOptionPrice;
+                        $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'original_price' ] = $optionPrice;
 
                         $productOptionDiscount = round(
-                            $productOptionPrice * $item->getDiscountAmount() / $item->getRowTotalInclTax(),
+                            $optionPrice * $item->getDiscountAmount() / $item->getRowTotalInclTax(),
                             2
                         );
 
                         $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'discount' ] =
                             $productOptionDiscount;
 
-                        $productOptionPrice -= $productOptionDiscount;
+                        $optionPrice -= $productOptionDiscount;
                     }
 
-                    $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'price' ] = $productOptionPrice;
+                    $itemProductOptions[ 'options' ][ $itemProductOptionKey ][ 'price' ] = $optionPrice;
                 }
             }
         }
