@@ -78,7 +78,9 @@ class SalesOrderPlaceAfter implements ObserverInterface
      */
     protected function addPriceToOrderItem(Item $item): void
     {
-        $product = $item->getProduct();
+        $parentItem = $item->getParentItem();
+
+        $product = $parentItem ? $parentItem->getProduct() : $item->getProduct();
 
         $itemProductOptions = $item->getProductOptions();
 
