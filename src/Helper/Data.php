@@ -175,6 +175,10 @@ class Data
             /** @var Option $productOptionData */
             $productOptionData = $item->getProductOption();
 
+            if ($productOptionData === null) {
+                continue;
+            }
+
             /** @var ProductOptionExtension $productOptionDataAttributes */
             $productOptionDataAttributes = $productOptionData->getExtensionAttributes();
 
@@ -193,24 +197,46 @@ class Data
                         $itemProductOptionsOption,
                         'original_price'
                     );
+                    $itemProductOptionsOptionDiscount = $this->arrays->getValue(
+                        $itemProductOptionsOption,
+                        'discount'
+                    );
+                    $itemProductOptionsOptionPrice = $this->arrays->getValue(
+                        $itemProductOptionsOption,
+                        'price'
+                    );
+
+                    $transportObject = new DataObject(
+                        [
+                            'item'                     => $item,
+                            'item_product_option_data' => $itemProductOptionsOption,
+                            'custom_option'            => $customOption,
+                            'original_price'           => $itemProductOptionsOptionOriginalPrice,
+                            'discount'                 => $itemProductOptionsOptionDiscount,
+                            'price'                    => $itemProductOptionsOptionPrice
+                        ]
+                    );
+
+                    $this->eventManager->dispatch(
+                        'order_item_option_price',
+                        [
+                            'data' => $transportObject
+                        ]
+                    );
+
+                    $itemProductOptionsOptionOriginalPrice = $transportObject->getData('original_price');
                     if ($itemProductOptionsOptionOriginalPrice !== null) {
                         $customOptionExtensionAttributes->setOriginalPrice(
                             $itemProductOptionsOptionOriginalPrice
                         );
                     }
 
-                    $itemProductOptionsOptionDiscount = $this->arrays->getValue(
-                        $itemProductOptionsOption,
-                        'discount'
-                    );
+                    $itemProductOptionsOptionDiscount = $transportObject->getData('discount');
                     if ($itemProductOptionsOptionDiscount !== null) {
                         $customOptionExtensionAttributes->setDiscount($itemProductOptionsOptionDiscount);
                     }
 
-                    $itemProductOptionsOptionPrice = $this->arrays->getValue(
-                        $itemProductOptionsOption,
-                        'price'
-                    );
+                    $itemProductOptionsOptionPrice = $transportObject->getData('price');
                     if ($itemProductOptionsOptionPrice) {
                         $customOptionExtensionAttributes->setPrice($itemProductOptionsOptionPrice);
                     }
