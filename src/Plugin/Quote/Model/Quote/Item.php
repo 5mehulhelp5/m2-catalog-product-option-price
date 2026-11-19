@@ -2,41 +2,52 @@
 
 declare(strict_types=1);
 
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
 namespace Infrangible\CatalogProductOptionPrice\Plugin\Quote\Model\Quote;
 
-use Magento\Framework\Pricing\PriceCurrencyInterface;
-use Magento\Tax\Helper\Data;
+use Infrangible\CatalogProductOptionPrice\Helper\Data;
+use Magento\Directory\Model\PriceCurrency;
+use Magento\Quote\Model\Quote\Item as QuoteItem;
+use Magento\Tax\Helper\Data as TaxHelper;
 use Magento\Tax\Model\Calculation;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Stores the prices of the options of a quote item (per unit and per row, with and without tax, in the currency of
+ * the quote and in the base currency) when Magento calculates the row total of the item.
  */
 class Item
 {
-    /** @var Calculation */
-    protected $calculation;
-
-    /** @var Data */
-    protected $taxHelper;
-
-    /** @var PriceCurrencyInterface */
-    protected $priceCurrency;
-
-    public function __construct(Calculation $calculation, Data $taxHelper, PriceCurrencyInterface $priceCurrency)
-    {
-        $this->calculation = $calculation;
-        $this->taxHelper = $taxHelper;
-        $this->priceCurrency = $priceCurrency;
+    /**
+     * @param Calculation $calculation
+     * @param TaxHelper $taxHelper
+     * @param PriceCurrency $priceCurrency
+     * @param Data $helper
+     */
+    public function __construct(
+        protected Calculation $calculation,
+        protected TaxHelper $taxHelper,
+        protected PriceCurrency $priceCurrency,
+        protected Data $helper
+    ) {
     }
 
-    public function afterCalcRowTotal(
-        \Magento\Quote\Model\Quote\Item $subject,
-        \Magento\Quote\Model\Quote\Item $result
-    ): \Magento\Quote\Model\Quote\Item {
-        $qty = $subject->getTotalQty();
-
+    /**
+     * Stores the prices of the options.
+     *
+     * They are calculated from the option prices of the product with the tax rate of the product in the quote.
+     *
+     * @param QuoteItem $subject
+     * @param QuoteItem $result
+     *
+     * @return QuoteItem
+     */
+    public function afterCalcRowTotal(QuoteItem $subject, QuoteItem $result): QuoteItem
+    {
         $quote = $subject->getQuote();
 
         $taxRateRequest = $this->calculation->getRateRequest(
@@ -44,226 +55,124 @@ class Item
             $quote->getBillingAddress(),
             $quote->getCustomerTaxClassId(),
             $quote->getStoreId(),
-            $quote->getCustomerId()
+            is_numeric($quote->getData('customer_id')) ? (int)$quote->getData('customer_id') : null
         );
 
-        $product = $subject->getProduct();
+        $taxRateRequest->setData('product_class_id', $subject->getProduct()->getData('tax_class_id'));
 
-        $taxRateRequest->setData(
-            'product_class_id',
-            $product->getData('tax_class_id')
-        );
+        $taxRate = $this->helper->floatValue($this->calculation->getRate($taxRateRequest));
+        $qty = $this->helper->floatValue($subject->getTotalQty());
+        $product = $result->getProduct();
 
-        $rate = $this->calculation->getRate($taxRateRequest);
-
-        $this->setOptionsPrice(
+        $this->setPrices(
             $result,
+            '',
+            $this->getConvertedPrice($result, 'options_price_attached'),
+            $this->getConvertedPrice($result, 'options_price_unattached'),
             $qty,
-            $rate
+            $taxRate
         );
 
-        $this->setBaseOptionsPrice(
+        $this->setPrices(
             $result,
+            'base_',
+            $this->helper->floatValue($product->getData('options_price_attached')),
+            $this->helper->floatValue($product->getData('options_price_unattached')),
             $qty,
-            $rate
+            $taxRate
         );
 
         return $result;
     }
 
-    private function setOptionsPrice(\Magento\Quote\Model\Quote\Item $item, float $qty, float $taxRate): void
-    {
-        $optionsPriceAttached = $this->getConvertedOptionsPriceAttached($item);
-        $optionsPriceUnattached = $this->getConvertedOptionsPriceUnattached($item);
+    /**
+     * Sets the price of the options per unit and per row, with and without tax.
+     *
+     * The attached price is multiplied with the quantity, the unattached price is added once per row. The prices of
+     * the products include tax or not, as configured.
+     *
+     * @param QuoteItem $item
+     * @param string $prefix "" for the currency of the quote, "base_" for the base currency
+     * @param float $priceAttached
+     * @param float $priceUnattached
+     * @param float $qty
+     * @param float $taxRate
+     *
+     * @return void
+     */
+    private function setPrices(
+        QuoteItem $item,
+        string $prefix,
+        float $priceAttached,
+        float $priceUnattached,
+        float $qty,
+        float $taxRate
+    ): void {
+        [$price, $priceInclTax] = $this->getPricesExclAndInclTax($priceAttached + $priceUnattached, $taxRate);
 
-        if ($this->taxHelper->priceIncludesTax()) {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $optionsPriceAttached + $optionsPriceUnattached,
-                $taxRate,
-                true
-            );
+        $item->setData($prefix . 'options_price', $price);
+        $item->setData($prefix . 'options_price_incl_tax', $priceInclTax);
 
-            $item->setData(
-                'options_price',
-                $this->priceCurrency->roundPrice($optionsPriceAttached + $optionsPriceUnattached - $taxAmount)
-            );
+        $rowPrice = $this->priceCurrency->roundPrice($this->priceCurrency->roundPrice($priceAttached) * $qty) +
+            $this->priceCurrency->roundPrice($priceUnattached);
 
-            $item->setData(
-                'options_price_incl_tax',
-                $optionsPriceAttached + $optionsPriceUnattached
-            );
-        } else {
-            $item->setData(
-                'options_price',
-                $this->priceCurrency->roundPrice($optionsPriceAttached + $optionsPriceUnattached)
-            );
+        [$rowPrice, $rowPriceInclTax] = $this->getPricesExclAndInclTax($rowPrice, $taxRate);
 
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $optionsPriceAttached + $optionsPriceUnattached,
-                $taxRate
-            );
-
-            $item->setData(
-                'options_price_incl_tax',
-                $this->priceCurrency->roundPrice($optionsPriceAttached + $optionsPriceUnattached + $taxAmount)
-            );
-        }
-
-        $rowOptionsPrice =
-            $this->priceCurrency->roundPrice($this->priceCurrency->roundPrice($optionsPriceAttached) * $qty) +
-            $this->priceCurrency->roundPrice($optionsPriceUnattached);
-
-        if ($this->taxHelper->priceIncludesTax()) {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $rowOptionsPrice,
-                $taxRate,
-                true
-            );
-
-            $item->setData(
-                'row_options_price',
-                $this->priceCurrency->roundPrice($rowOptionsPrice - $taxAmount)
-            );
-
-            $item->setData(
-                'row_options_price_incl_tax',
-                $this->priceCurrency->roundPrice($rowOptionsPrice)
-            );
-        } else {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $rowOptionsPrice,
-                $taxRate
-            );
-
-            $item->setData(
-                'row_options_price',
-                $rowOptionsPrice
-            );
-
-            $item->setData(
-                'row_options_price_incl_tax',
-                $this->priceCurrency->roundPrice($rowOptionsPrice + $taxAmount)
-            );
-        }
+        $item->setData($prefix . 'row_options_price', $rowPrice);
+        $item->setData($prefix . 'row_options_price_incl_tax', $rowPriceInclTax);
     }
 
-    private function getConvertedOptionsPriceAttached(\Magento\Quote\Model\Quote\Item $item): float
+    /**
+     * Returns the rounded price without and with tax.
+     *
+     * @param float $price including tax if the prices of the products include tax
+     * @param float $taxRate
+     *
+     * @return float[]
+     * @phpstan-return array{0: float, 1: float}
+     */
+    private function getPricesExclAndInclTax(float $price, float $taxRate): array
     {
-        $price = $item->getData('converted_options_price_attached');
+        if ($this->taxHelper->priceIncludesTax()) {
+            $taxAmount = $this->calculation->calcTaxAmount($price, $taxRate, true);
+
+            return [
+                $this->priceCurrency->roundPrice($price - $taxAmount),
+                $this->priceCurrency->roundPrice($price)
+            ];
+        }
+
+        $taxAmount = $this->calculation->calcTaxAmount($price, $taxRate);
+
+        return [
+            $this->priceCurrency->roundPrice($price),
+            $this->priceCurrency->roundPrice($price + $taxAmount)
+        ];
+    }
+
+    /**
+     * Returns the option price of the product converted into the currency of the quote.
+     *
+     * The price is converted once per item, like the price of the item.
+     *
+     * @param QuoteItem $item
+     * @param string $key "options_price_attached" or "options_price_unattached"
+     *
+     * @return float
+     */
+    private function getConvertedPrice(QuoteItem $item, string $key): float
+    {
+        $price = $item->getData('converted_' . $key);
 
         if ($price === null) {
-            $product = $item->getProduct();
-
             $price = $this->priceCurrency->convert(
-                $product->getData('options_price_attached'),
+                $this->helper->floatValue($item->getProduct()->getData($key)),
                 $item->getStore()
             );
 
-            $item->setData(
-                'converted_options_price_attached',
-                $price
-            );
+            $item->setData('converted_' . $key, $price);
         }
 
-        return $price;
-    }
-
-    private function getConvertedOptionsPriceUnattached(\Magento\Quote\Model\Quote\Item $item): float
-    {
-        $price = $item->getData('converted_options_price_unattached');
-
-        if ($price === null) {
-            $product = $item->getProduct();
-
-            $price = $this->priceCurrency->convert(
-                $product->getData('options_price_unattached'),
-                $item->getStore()
-            );
-
-            $item->setData(
-                'converted_options_price_unattached',
-                $price
-            );
-        }
-
-        return $price;
-    }
-
-    private function setBaseOptionsPrice(\Magento\Quote\Model\Quote\Item $item, float $qty, float $taxRate): void
-    {
-        $product = $item->getProduct();
-
-        $baseOptionsPriceAttached = $product->getData('options_price_attached');
-        $baseOptionsPriceUnattached = $product->getData('options_price_unattached');
-
-        if ($this->taxHelper->priceIncludesTax()) {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $baseOptionsPriceAttached + $baseOptionsPriceUnattached,
-                $taxRate,
-                true
-            );
-
-            $item->setData(
-                'base_options_price',
-                $this->priceCurrency->roundPrice($baseOptionsPriceAttached + $baseOptionsPriceUnattached - $taxAmount)
-            );
-
-            $item->setData(
-                'base_options_price_incl_tax',
-                $baseOptionsPriceAttached + $baseOptionsPriceUnattached
-            );
-        } else {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $baseOptionsPriceAttached + $baseOptionsPriceUnattached,
-                $taxRate
-            );
-
-            $item->setData(
-                'base_options_price',
-                $baseOptionsPriceAttached + $baseOptionsPriceUnattached
-            );
-
-            $item->setData(
-                'base_options_price_incl_tax',
-                $this->priceCurrency->roundPrice($baseOptionsPriceAttached + $baseOptionsPriceUnattached + $taxAmount)
-            );
-        }
-
-        $baseRowOptionsPrice =
-            $this->priceCurrency->roundPrice($this->priceCurrency->roundPrice($baseOptionsPriceAttached) * $qty) +
-            $this->priceCurrency->roundPrice($baseOptionsPriceUnattached);
-
-        if ($this->taxHelper->priceIncludesTax()) {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $baseRowOptionsPrice,
-                $taxRate,
-                true
-            );
-
-            $item->setData(
-                'base_row_options_price',
-                $this->priceCurrency->roundPrice($baseRowOptionsPrice - $taxAmount)
-            );
-
-            $item->setData(
-                'base_row_options_price_incl_tax',
-                $baseRowOptionsPrice
-            );
-        } else {
-            $taxAmount = $this->calculation->calcTaxAmount(
-                $baseRowOptionsPrice,
-                $taxRate
-            );
-
-            $item->setData(
-                'base_row_options_price',
-                $baseRowOptionsPrice
-            );
-
-            $item->setData(
-                'base_row_options_price_incl_tax',
-                $this->priceCurrency->roundPrice($baseRowOptionsPrice + $taxAmount)
-            );
-        }
+        return $this->helper->floatValue($price);
     }
 }

@@ -2,20 +2,25 @@
 
 declare(strict_types=1);
 
-namespace Infrangible\CatalogProductOptionPrice\Plugin\Quote\Model\Quote\Item;
-
-use Magento\Quote\Model\Quote\Item\AbstractItem;
-use Magento\Sales\Api\Data\OrderItemInterface;
-use Magento\Sales\Model\Order\Item;
-
 /**
  * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
+namespace Infrangible\CatalogProductOptionPrice\Plugin\Quote\Model\Quote\Item;
+
+use Magento\Framework\DataObject;
+use Magento\Quote\Model\Quote\Item\AbstractItem;
+use Magento\Sales\Api\Data\OrderItemInterface;
+
+/**
+ * Copies the prices of the options from the quote item to the order item.
  */
 class ToOrderItem
 {
-    private static $columns = [
+    /** The columns of the prices in the tables quote_item and sales_order_item. */
+    public const COLUMNS = [
         'options_price',
         'base_options_price',
         'row_options_price',
@@ -27,27 +32,26 @@ class ToOrderItem
     ];
 
     /**
+     * Copies the prices to the converted order item.
+     *
+     * @param \Magento\Quote\Model\Quote\Item\ToOrderItem $subject
+     * @param OrderItemInterface $result
+     * @param AbstractItem $item
+     *
+     * @return OrderItemInterface
      * @noinspection PhpUnusedParameterInspection
      */
-    public function aroundConvert(
+    public function afterConvert(
         \Magento\Quote\Model\Quote\Item\ToOrderItem $subject,
-        \Closure $proceed,
-        AbstractItem $item,
-        $additional = []
+        OrderItemInterface $result,
+        AbstractItem $item
     ): OrderItemInterface {
-        /** @var Item $orderItem */
-        $orderItem = $proceed(
-            $item,
-            $additional
-        );
-
-        foreach (static::$columns as $column) {
-            $orderItem->setData(
-                $column,
-                $item->getData($column)
-            );
+        if ($result instanceof DataObject) {
+            foreach (self::COLUMNS as $column) {
+                $result->setData($column, $item->getData($column));
+            }
         }
 
-        return $orderItem;
+        return $result;
     }
 }

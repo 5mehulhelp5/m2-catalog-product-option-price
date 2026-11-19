@@ -1,0 +1,26 @@
+{
+    "quote_item": {
+        "column": {
+            "options_price": true,
+            "base_options_price": true,
+            "row_options_price": true,
+            "base_row_options_price": true,
+            "options_price_incl_tax": true,
+            "base_options_price_incl_tax": true,
+            "row_options_price_incl_tax": true,
+            "base_row_options_price_incl_tax": true
+        }
+    },
+    "sales_order_item": {
+        "column": {
+            "options_price": true,
+            "base_options_price": true,
+            "row_options_price": true,
+            "base_row_options_price": true,
+            "options_price_incl_tax": true,
+            "base_options_price_incl_tax": true,
+            "row_options_price_incl_tax": true,
+            "base_row_options_price_incl_tax": true
+        }
+    }
+}

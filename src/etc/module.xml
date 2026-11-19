@@ -2,9 +2,18 @@
 
 <!--
  * @author      Andreas Knollmann
- * @copyright   Copyright (c) 2014-2025 Softwareentwicklung Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
  * @license     http://www.opensource.org/licenses/mit-license.php MIT
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Module/etc/module.xsd">
-    <module name="Infrangible_CatalogProductOptionPrice" setup_version="1.0.0"/>
+    <module name="Infrangible_CatalogProductOptionPrice">
+        <sequence>
+            <module name="Infrangible_Foundation"/>
+            <module name="Magento_Catalog"/>
+            <module name="Magento_Directory"/>
+            <module name="Magento_Quote"/>
+            <module name="Magento_Sales"/>
+            <module name="Magento_Tax"/>
+        </sequence>
+    </module>
 </config>

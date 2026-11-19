@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<!--
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="quote_item">
+        <column xsi:type="decimal" name="options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Options price"/>
+        <column xsi:type="decimal" name="base_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base options price"/>
+        <column xsi:type="decimal" name="row_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Row options price"/>
+        <column xsi:type="decimal" name="base_row_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base row options price"/>
+        <column xsi:type="decimal" name="options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Options price incl tax"/>
+        <column xsi:type="decimal" name="base_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base options price incl tax"/>
+        <column xsi:type="decimal" name="row_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Row options price incl tax"/>
+        <column xsi:type="decimal" name="base_row_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base row options price incl tax"/>
+    </table>
+    <table name="sales_order_item">
+        <column xsi:type="decimal" name="options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Options price"/>
+        <column xsi:type="decimal" name="base_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base options price"/>
+        <column xsi:type="decimal" name="row_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Row options price"/>
+        <column xsi:type="decimal" name="base_row_options_price" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base row options price"/>
+        <column xsi:type="decimal" name="options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Options price incl tax"/>
+        <column xsi:type="decimal" name="base_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base options price incl tax"/>
+        <column xsi:type="decimal" name="row_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Row options price incl tax"/>
+        <column xsi:type="decimal" name="base_row_options_price_incl_tax" scale="4" precision="20" unsigned="false" nullable="true" default="0" comment="Base row options price incl tax"/>
+    </table>
+</schema>

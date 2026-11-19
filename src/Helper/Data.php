@@ -2,15 +2,21 @@
 
 declare(strict_types=1);
 
+/**
+ * @author      Andreas Knollmann
+ * @copyright   Copyright (c) 2014-2026 Softwareentwicklung Andreas Knollmann
+ * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ */
+
 namespace Infrangible\CatalogProductOptionPrice\Helper;
 
 use FeWeDev\Base\Arrays;
 use FeWeDev\Base\Variables;
-use Magento\Catalog\Api\Data\CustomOptionExtension;
 use Magento\Catalog\Api\Data\CustomOptionExtensionFactory;
-use Magento\Catalog\Api\Data\ProductOptionExtension;
-use Magento\Catalog\Model\CustomOptions\CustomOption;
-use Magento\Catalog\Model\Product\Option;
+use Magento\Catalog\Api\Data\CustomOptionExtensionInterface;
+use Magento\Catalog\Api\Data\CustomOptionInterface;
+use Magento\Catalog\Helper\Data as CatalogHelper;
+use Magento\Catalog\Model\Product\Configuration\Item\Option\OptionInterface;
 use Magento\Framework\DataObject;
 use Magento\Framework\Event\ManagerInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -19,125 +25,122 @@ use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Model\Order\Item;
 
 /**
- * @author      Andreas Knollmann
- * @copyright   2014-2025 Softwareentwicklung Andreas Knollmann
- * @license     http://www.opensource.org/licenses/mit-license.php MIT
+ * Prices of the product options of quote items and order items.
  */
 class Data
 {
-    /** @var \Magento\Catalog\Helper\Data */
-    protected $catalogHelper;
-
-    /** @var Variables */
-    protected $variables;
-
-    /** @var ManagerInterface */
-    protected $eventManager;
-
-    /** @var Arrays */
-    protected $arrays;
-
-    /** @var CustomOptionExtensionFactory */
-    protected $customOptionExtensionFactory;
-
+    /**
+     * @param CatalogHelper $catalogHelper
+     * @param Variables $variables
+     * @param ManagerInterface $eventManager
+     * @param Arrays $arrays
+     * @param CustomOptionExtensionFactory $customOptionExtensionFactory
+     */
     public function __construct(
-        \Magento\Catalog\Helper\Data $catalogHelper,
-        Variables $variables,
-        ManagerInterface $eventManager,
-        Arrays $arrays,
-        CustomOptionExtensionFactory $customOptionExtensionFactory
+        protected CatalogHelper $catalogHelper,
+        protected Variables $variables,
+        protected ManagerInterface $eventManager,
+        protected Arrays $arrays,
+        protected CustomOptionExtensionFactory $customOptionExtensionFactory
     ) {
-        $this->catalogHelper = $catalogHelper;
-        $this->variables = $variables;
-        $this->eventManager = $eventManager;
-        $this->arrays = $arrays;
-        $this->customOptionExtensionFactory = $customOptionExtensionFactory;
     }
 
+    /**
+     * Returns the prices of the selected options of the quote item including tax by option ID.
+     *
+     * Observers of the event "catalog_product_get_option_price" can change the price of each option. Options that
+     * Magento cannot create a group for are left out.
+     *
+     * @param AbstractItem $item
+     *
+     * @return float[]
+     * @phpstan-return array<int, float>
+     */
     public function getItemOptionPrices(AbstractItem $item): array
     {
+        // Magento declares the option as always set, it is null if the item has no options
+        /** @var OptionInterface|null $optionIdsOption */
         $optionIdsOption = $item->getOptionByCode('option_ids');
 
+        if ($optionIdsOption === null) {
+            return [];
+        }
+
+        $optionIdsValue = $this->variables->stringValueOrDefault($optionIdsOption->getValue());
+
+        if ($optionIdsValue === '') {
+            return [];
+        }
+
+        $product = $item->getProduct();
+        // the base of the option prices with a percent price type, see the plugin of the product price
+        $finalPrice = $this->floatValue(
+            $product->getData('final_price_without_options') ?? $product->getFinalPrice()
+        );
         $optionPrices = [];
 
-        if ($optionIdsOption) {
-            $optionIdsOptionValue = $optionIdsOption->getValue();
+        foreach (explode(',', $optionIdsValue) as $optionId) {
+            $productOption = $product->getOptionById($this->variables->intValue($optionId));
 
-            if (! $this->variables->isEmpty($optionIdsOptionValue)) {
-                $product = $item->getProduct();
-
-                $finalPrice = $product->getFinalPrice();
-
-                $qty = $item->getQty();
-
-                $optionIds = explode(
-                    ',',
-                    $optionIdsOptionValue
-                );
-
-                foreach ($optionIds as $optionId) {
-                    $productOption = $product->getOptionById($optionId);
-
-                    if ($productOption) {
-                        $customOption = $item->getOptionByCode('option_' . $productOption->getId());
-
-                        try {
-                            $group = $productOption->groupFactory($productOption->getType());
-                        } catch (LocalizedException $exception) {
-                            continue;
-                        }
-
-                        $group->setOption($productOption);
-                        $group->setData(
-                            'configuration_item',
-                            $item
-                        );
-                        $group->setData(
-                            'configuration_item_option',
-                            $customOption
-                        );
-
-                        $optionPrice = $group->getOptionPrice(
-                            $customOption->getValue(),
-                            $finalPrice
-                        );
-
-                        $transportObject = new DataObject(
-                            [
-                                'product'        => $product,
-                                'final_price'    => $finalPrice,
-                                'qty'            => $qty,
-                                'product_option' => $productOption,
-                                'custom_option'  => $customOption,
-                                'option_price'   => $optionPrice
-                            ]
-                        );
-
-                        $this->eventManager->dispatch(
-                            'catalog_product_get_option_price',
-                            [
-                                'data' => $transportObject
-                            ]
-                        );
-
-                        $optionPrice = $transportObject->getData('option_price');
-
-                        $optionPrice = $this->catalogHelper->getTaxPrice(
-                            $productOption->getProduct(),
-                            $optionPrice,
-                            true
-                        );
-
-                        $optionPrices[ $optionId ] = $optionPrice;
-                    }
-                }
+            if ($productOption === null) {
+                continue;
             }
+
+            /** @var OptionInterface|null $customOption */
+            $customOption = $item->getOptionByCode('option_' . $productOption->getId());
+
+            if ($customOption === null) {
+                continue;
+            }
+
+            try {
+                $group = $productOption->groupFactory($productOption->getType());
+            } catch (LocalizedException) {
+                continue;
+            }
+
+            $group->setOption($productOption);
+            $group->setData('configuration_item', $item);
+            $group->setData('configuration_item_option', $customOption);
+
+            $transportObject = new DataObject(
+                [
+                    'product'        => $product,
+                    'final_price'    => $finalPrice,
+                    'qty'            => $item->getQty(),
+                    'product_option' => $productOption,
+                    'custom_option'  => $customOption,
+                    'option_price'   => $group->getOptionPrice(
+                        $this->variables->stringValueOrDefault($customOption->getValue()),
+                        $finalPrice
+                    )
+                ]
+            );
+
+            $this->eventManager->dispatch('catalog_product_get_option_price', ['data' => $transportObject]);
+
+            $optionPrices[ (int)$optionId ] = $this->floatValue(
+                $this->catalogHelper->getTaxPrice(
+                    $productOption->getProduct(),
+                    $this->floatValue($transportObject->getData('option_price')),
+                    true
+                )
+            );
         }
 
         return $optionPrices;
     }
 
-    public function addProductOptionPriceToOrder(OrderInterface $order)
+    /**
+     * Adds the prices of the options of the order items to the extension attributes of their custom options.
+     *
+     * Covers the items of the order and the items of its shipping assignments.
+     *
+     * @param OrderInterface $order
+     *
+     * @return void
+     */
+    public function addProductOptionPriceToOrder(OrderInterface $order): void
     {
         foreach ($order->getItems() as $item) {
             if ($item instanceof Item) {
@@ -145,9 +148,7 @@ class Data
             }
         }
 
-        $shippingAssignments = $order->getExtensionAttributes()->getShippingAssignments();
-
-        foreach ($shippingAssignments as $shippingAssignment) {
+        foreach ($order->getExtensionAttributes()?->getShippingAssignments() ?? [] as $shippingAssignment) {
             foreach ($shippingAssignment->getItems() as $item) {
                 if ($item instanceof Item) {
                     $this->addProductOptionPriceToOrderItem($item);
@@ -156,94 +157,104 @@ class Data
         }
     }
 
+    /**
+     * Adds the prices of the options of the order item to the extension attributes of its custom options.
+     *
+     * These are the original price, the discount and the price, as stored when the order was placed.
+     *
+     * Observers of the event "order_item_option_price" can change the prices.
+     *
+     * @param Item $item
+     *
+     * @return void
+     */
     public function addProductOptionPriceToOrderItem(Item $item): void
     {
-        $itemProductOptions = $item->getProductOptions();
+        $customOptions = $item->getProductOption()?->getExtensionAttributes()?->getCustomOptions() ?? [];
 
-        $itemProductOptionsOptions = $this->arrays->getValue(
-            $itemProductOptions,
-            'options',
-            []
-        );
+        if (count($customOptions) === 0) {
+            return;
+        }
 
-        foreach ($itemProductOptionsOptions as $itemProductOptionsOption) {
-            $itemProductOptionsOptionId = $this->arrays->getValue(
-                $itemProductOptionsOption,
-                'option_id'
-            );
+        // Magento declares the product options as array, they are null for items without options
+        /** @var array<string, mixed>|null $productOptions */
+        $productOptions = $item->getProductOptions();
+        $itemProductOptions = $this->arrays->getValue($productOptions ?? [], 'options', []);
 
-            /** @var Option $productOptionData */
-            $productOptionData = $item->getProductOption();
-
-            if ($productOptionData === null) {
+        foreach (is_array($itemProductOptions) ? $itemProductOptions : [] as $itemProductOption) {
+            if (! is_array($itemProductOption)) {
                 continue;
             }
 
-            /** @var ProductOptionExtension $productOptionDataAttributes */
-            $productOptionDataAttributes = $productOptionData->getExtensionAttributes();
+            $optionId = $this->variables->stringValueOrDefault($itemProductOption[ 'option_id' ] ?? null);
 
-            $customOptions = $productOptionDataAttributes->getCustomOptions();
-
-            /** @var CustomOption $customOption */
             foreach ($customOptions as $customOption) {
-                if ($customOption->getOptionId() == $itemProductOptionsOptionId) {
-                    /** @var CustomOptionExtension $customOptionExtensionAttributes */
-                    $customOptionExtensionAttributes = $customOption->getExtensionAttributes();
-
-                    $customOptionExtensionAttributes =
-                        $customOptionExtensionAttributes ? : $this->customOptionExtensionFactory->create();
-
-                    $itemProductOptionsOptionOriginalPrice = $this->arrays->getValue(
-                        $itemProductOptionsOption,
-                        'original_price'
-                    );
-                    $itemProductOptionsOptionDiscount = $this->arrays->getValue(
-                        $itemProductOptionsOption,
-                        'discount'
-                    );
-                    $itemProductOptionsOptionPrice = $this->arrays->getValue(
-                        $itemProductOptionsOption,
-                        'price'
-                    );
-
-                    $transportObject = new DataObject(
-                        [
-                            'item'                     => $item,
-                            'item_product_option_data' => $itemProductOptionsOption,
-                            'custom_option'            => $customOption,
-                            'original_price'           => $itemProductOptionsOptionOriginalPrice,
-                            'discount'                 => $itemProductOptionsOptionDiscount,
-                            'price'                    => $itemProductOptionsOptionPrice
-                        ]
-                    );
-
-                    $this->eventManager->dispatch(
-                        'order_item_option_price',
-                        [
-                            'data' => $transportObject
-                        ]
-                    );
-
-                    $itemProductOptionsOptionOriginalPrice = $transportObject->getData('original_price');
-                    if ($itemProductOptionsOptionOriginalPrice !== null) {
-                        $customOptionExtensionAttributes->setOriginalPrice(
-                            $itemProductOptionsOptionOriginalPrice
-                        );
-                    }
-
-                    $itemProductOptionsOptionDiscount = $transportObject->getData('discount');
-                    if ($itemProductOptionsOptionDiscount !== null) {
-                        $customOptionExtensionAttributes->setDiscount($itemProductOptionsOptionDiscount);
-                    }
-
-                    $itemProductOptionsOptionPrice = $transportObject->getData('price');
-                    if ($itemProductOptionsOptionPrice) {
-                        $customOptionExtensionAttributes->setPrice($itemProductOptionsOptionPrice);
-                    }
-
-                    $customOption->setExtensionAttributes($customOptionExtensionAttributes);
+                if ($this->variables->stringValueOrDefault($customOption->getOptionId()) === $optionId) {
+                    $this->addPrices($item, $itemProductOption, $customOption);
                 }
             }
         }
+    }
+
+    /**
+     * Returns a numeric value as float, 0 for other values (prices that are not set).
+     *
+     * @param mixed $value
+     *
+     * @return float
+     */
+    public function floatValue(mixed $value): float
+    {
+        return is_numeric($value) ? (float)$value : 0.0;
+    }
+
+    /**
+     * Adds the prices of the option to the extension attributes of the custom option.
+     *
+     * @param Item $item
+     * @param array $itemProductOption
+     * @phpstan-param array<int|string, mixed> $itemProductOption
+     * @param CustomOptionInterface $customOption
+     *
+     * @return void
+     */
+    protected function addPrices(Item $item, array $itemProductOption, CustomOptionInterface $customOption): void
+    {
+        $transportObject = new DataObject(
+            [
+                'item'                     => $item,
+                'item_product_option_data' => $itemProductOption,
+                'custom_option'            => $customOption,
+                'original_price'           => $itemProductOption[ 'original_price' ] ?? null,
+                'discount'                 => $itemProductOption[ 'discount' ] ?? null,
+                'price'                    => $itemProductOption[ 'price' ] ?? null
+            ]
+        );
+
+        $this->eventManager->dispatch('order_item_option_price', ['data' => $transportObject]);
+
+        /** @var CustomOptionExtensionInterface $extensionAttributes */
+        $extensionAttributes =
+            $customOption->getExtensionAttributes() ?? $this->customOptionExtensionFactory->create();
+
+        $originalPrice = $transportObject->getData('original_price');
+
+        if (is_numeric($originalPrice)) {
+            $extensionAttributes->setOriginalPrice((float)$originalPrice);
+        }
+
+        $discount = $transportObject->getData('discount');
+
+        if (is_numeric($discount)) {
+            $extensionAttributes->setDiscount((float)$discount);
+        }
+
+        $price = $transportObject->getData('price');
+
+        if (is_numeric($price)) {
+            $extensionAttributes->setPrice((float)$price);
+        }
+
+        $customOption->setExtensionAttributes($extensionAttributes);
     }
 }
