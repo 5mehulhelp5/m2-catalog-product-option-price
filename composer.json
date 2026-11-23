@@ -27,6 +27,9 @@
         "magento/module-sales": "~103.0.0",
         "magento/module-tax": "~100.4.0"
     },
+    "require-dev": {
+        "infrangible/phpstan-magento": "~1.0.0"
+    },
     "autoload": {
         "files": [
             "src/registration.php"

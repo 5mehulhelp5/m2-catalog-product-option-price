@@ -13,7 +13,6 @@ namespace Infrangible\CatalogProductOptionPrice\Helper;
 use FeWeDev\Base\Arrays;
 use FeWeDev\Base\Variables;
 use Magento\Catalog\Api\Data\CustomOptionExtensionFactory;
-use Magento\Catalog\Api\Data\CustomOptionExtensionInterface;
 use Magento\Catalog\Api\Data\CustomOptionInterface;
 use Magento\Catalog\Helper\Data as CatalogHelper;
 use Magento\Catalog\Model\Product\Configuration\Item\Option\OptionInterface;
@@ -233,7 +232,6 @@ class Data
 
         $this->eventManager->dispatch('order_item_option_price', ['data' => $transportObject]);
 
-        /** @var CustomOptionExtensionInterface $extensionAttributes */
         $extensionAttributes =
             $customOption->getExtensionAttributes() ?? $this->customOptionExtensionFactory->create();
 
